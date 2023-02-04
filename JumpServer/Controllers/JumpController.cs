@@ -19,13 +19,9 @@ namespace JumpServer.Controllers
 
         [HttpGet]
         [HttpPost]
-        public async Task<string> Go()
+        public async Task<string> Go([FromQuery] string url)
         {
             var req = Request;
-            if (!req.Headers.TryGetValue("url", out var url))
-            {
-                return "must provide url in header";
-            }
             var client = new HttpClient { };
             HashSet<string>? headerSets = null;
             if (req.Headers.TryGetValue("accepted-headers", out var accecptedHeaders))
@@ -35,16 +31,24 @@ namespace JumpServer.Controllers
             req.EnableBuffering();
             using var bodyReader = new StreamReader(req.Body, Encoding.UTF8, true, 1024, true);
             var body = await bodyReader.ReadToEndAsync();
+            var mediaType = "application/json";
+            var charset = "UTF-8";
             if (req.Headers.TryGetValue("Content-Type", out var contentType))
             {
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
+                var contentTypes = contentType.ToString().Split("; ").ToList();
+                var tmpCharset = contentTypes.FirstOrDefault(d => d.Contains("charset"))?.Replace("charset=", "", StringComparison.OrdinalIgnoreCase);
+                if (!string.IsNullOrEmpty(tmpCharset))
+                {
+                    charset = tmpCharset;
+                }
+                mediaType = contentTypes.First(d => d.Contains('/'));
             }
 
             var content = new HttpRequestMessage
             {
                 RequestUri = new Uri(url),
                 Method = new HttpMethod(Request.Method),
-                Content = new StringContent(body, Encoding.UTF8, contentType),
+                Content = new StringContent(body, Encoding.GetEncoding(charset), mediaType)
             };
             if (headerSets != null)
             {
